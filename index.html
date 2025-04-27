@@ -100,6 +100,7 @@
       height: 300px;
       border: 3px solid #fff;
       object-fit: cover; /* Ensure video feed is cropped to fit without distortion */
+      transform: scaleX(-1); /* Flip the video horizontally to remove mirroring */
     }
 
     #countdown {
@@ -542,12 +543,11 @@
     <button id="uploadPhotoBtn" class="button"><i class="fas fa-upload"></i> Upload Photo</button>
     <div class="landing-info">
       <p>Developed by Muhammad Faizal</p>
-      <p>Sponsored by Yotta</p>
-      <p>Sponsored by Otodidak</p>
+      <p>Sponsored by xAI</p>
       <div class="social-icons">
-        <a href="https://github.com/MhmmdFaizal04" target="_blank"><i class="fab fa-github"></i></a>
+        <a href="https://github.com" target="_blank"><i class="fab fa-github"></i></a>
         <a href="https://linkedin.com" target="_blank"><i class="fab fa-linkedin"></i></a>
-        <a href="https://instagram.com/zallvisual" target="_blank"><i class="fab fa-instagram"></i></a>
+        <a href="https://instagram.com" target="_blank"><i class="fab fa-instagram"></i></a>
       </div>
     </div>
   </div>
@@ -718,7 +718,7 @@
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
 
-        // Capture the photo while preserving the aspect ratio
+        // Capture the photo while preserving the aspect ratio and flipping horizontally
         const videoWidth = video.videoWidth;
         const videoHeight = video.videoHeight;
         const canvasSize = canvas.width; // 300px for a 1:1 canvas
@@ -739,12 +739,19 @@
           srcY = (videoHeight - srcHeight) / 2; // Center the crop
         }
 
+        // Flip the canvas horizontally to match the flipped video
+        ctx.save();
+        ctx.scale(-1, 1); // Flip horizontally
+        ctx.translate(-canvasSize, 0); // Adjust for the flip
+
         // Draw the cropped video feed onto the canvas
         ctx.drawImage(
           video,
           srcX, srcY, srcWidth, srcHeight, // Source rectangle (crop)
           0, 0, canvasSize, canvasSize // Destination rectangle (fit to canvas)
         );
+
+        ctx.restore(); // Restore the canvas state
 
         const dataUrl = canvas.toDataURL('image/png');
         capturedPhotos.push(dataUrl);
