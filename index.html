@@ -593,9 +593,9 @@
         <h3><i class="fas fa-filter"></i> Filter</h3>
         <div class="filter-buttons">
           <button id="noneFilterBtn" class="active" onclick="applyFilter('none')">None</button>
-          <button id="grayscaleFilterBtn" onclick="applyFilter('grayscale(100%)')">Grayscale</button>
-          <button id="sepiaFilterBtn" onclick="applyFilter('sepia(100%)')">Sepia</button>
-          <button id="brightenFilterBtn" onclick="applyFilter('brightness(150%)')">Brighten</button>
+          <button id="grayscaleFilterBtn" onclick="applyFilter('grayscale')">Grayscale</button>
+          <button id="sepiaFilterBtn" onclick="applyFilter('sepia')">Sepia</button>
+          <button id="brightenFilterBtn" onclick="applyFilter('brighten')">Brighten</button>
         </div>
       </div>
       <div>
@@ -830,26 +830,34 @@
       blueBtn.classList.toggle('active', color === '#e1f5fd');
     };
 
-    // Apply filter to all photos
+    // Apply filter to all photos (CSS for display)
     window.applyFilter = (filter) => {
       const imgs = photoStrip.querySelectorAll('img');
       imgs.forEach(img => {
-        img.style.filter = filter;
+        if (filter === 'none') {
+          img.style.filter = 'none';
+        } else if (filter === 'grayscale') {
+          img.style.filter = 'grayscale(100%)';
+        } else if (filter === 'sepia') {
+          img.style.filter = 'sepia(100%)';
+        } else if (filter === 'brighten') {
+          img.style.filter = 'brightness(150%)';
+        }
       });
 
       // Update active button
       noneFilterBtn.classList.toggle('active', filter === 'none');
-      grayscaleFilterBtn.classList.toggle('active', filter === 'grayscale(100%)');
-      sepiaFilterBtn.classList.toggle('active', filter === 'sepia(100%)');
-      brightenFilterBtn.classList.toggle('active', filter === 'brightness(150%)');
+      grayscaleFilterBtn.classList.toggle('active', filter === 'grayscale');
+      sepiaFilterBtn.classList.toggle('active', filter === 'sepia');
+      brightenFilterBtn.classList.toggle('active', filter === 'brighten');
     };
 
     // Get the currently active filter
     const getActiveFilter = () => {
       if (noneFilterBtn.classList.contains('active')) return 'none';
-      if (grayscaleFilterBtn.classList.contains('active')) return 'grayscale(100%)';
-      if (sepiaFilterBtn.classList.contains('active')) return 'sepia(100%)';
-      if (brightenFilterBtn.classList.contains('active')) return 'brightness(150%)';
+      if (grayscaleFilterBtn.classList.contains('active')) return 'grayscale';
+      if (sepiaFilterBtn.classList.contains('active')) return 'sepia';
+      if (brightenFilterBtn.classList.contains('active')) return 'brighten';
       return 'none';
     };
 
@@ -941,29 +949,61 @@
       }
     };
 
-    // Function to generate the preview image
-    const generatePreviewImage = () => {
+    // Function to apply filters on canvas
+    const applyCanvasFilter = (ctx, filter, width, height) => {
+      if (filter === 'none') return;
+
+      // Get image data
+      const imageData = ctx.getImageData(0, 0, width, height);
+      const data = imageData.data;
+
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+
+        if (filter === 'grayscale') {
+          const gray = 0.3 * r + 0.59 * g + 0.11 * b;
+          data[i] = gray;
+          data[i + 1] = gray;
+          data[i + 2] = gray;
+        } else if (filter === 'sepia') {
+          data[i] = Math.min(255, (r * 0.393) + (g * 0.769) + (b * 0.189));
+          data[i + 1] = Math.min(255, (r * 0.349) + (g * 0.686) + (b * 0.168));
+          data[i + 2] = Math.min(255, (r * 0.272) + (g * 0.534) + (b * 0.131));
+        } else if (filter === 'brighten') {
+          data[i] = Math.min(255, r * 1.5);
+          data[i + 1] = Math.min(255, g * 1.5);
+          data[i + 2] = Math.min(255, b * 1.5);
+        }
+      }
+
+      ctx.putImageData(imageData, 0, 0);
+    };
+
+    // Function to generate the image for preview or download
+    const generateImage = () => {
       const stripCanvas = document.createElement('canvas');
       const stripCtx = stripCanvas.getContext('2d');
       const imgs = photoStrip.querySelectorAll('img');
-      const stickers = photoStrip.querySelectorAll('.sticker');
       const padding = 10;
-      const imgWidth = 300; // Use the actual width of the images
+      const imgWidth = 300;
       const imgHeight = 300;
 
       // Dynamically calculate canvas dimensions based on strip style
       if (photoStrip.classList.contains('photo-strip-vertical')) {
         stripCanvas.width = imgWidth + padding * 2;
-        stripCanvas.height = (imgHeight * maxPhotos) + padding * (maxPhotos + 1) + (dateToggle.checked ? 30 : 0); // Add extra space for date if needed
+        stripCanvas.height = (imgHeight * maxPhotos) + padding * (maxPhotos + 1) + (dateToggle.checked ? 30 : 0);
       } else {
         stripCanvas.width = (imgWidth * maxPhotos) + padding * (maxPhotos + 1);
         stripCanvas.height = imgHeight + padding * 2 + (dateToggle.checked ? 30 : 0);
       }
 
-      // Apply background to canvas
+      // Apply background color
       stripCtx.fillStyle = photoStripContainer.style.backgroundColor;
       stripCtx.fillRect(0, 0, stripCanvas.width, stripCanvas.height);
 
+      // Apply background pattern
       const currentBackground = getActiveBackground();
       if (currentBackground === 'gradient') {
         const gradient = stripCtx.createLinearGradient(0, 0, stripCanvas.width, stripCanvas.height);
@@ -982,38 +1022,70 @@
         }
       } else if (currentBackground === 'stripes') {
         stripCtx.fillStyle = '#ffccde';
-        for (let i = 0; i < stripCanvas.width + stripCanvas.height; i += 20) {
+        for (let i = -stripCanvas.height; i < stripCanvas.width; i += 20) {
           stripCtx.beginPath();
           stripCtx.moveTo(i, 0);
-          stripCtx.lineTo(0, i);
-          stripCtx.lineTo(i - stripCanvas.width, stripCanvas.height);
-          stripCtx.lineTo(i - stripCanvas.width + stripCanvas.height, stripCanvas.height);
+          stripCtx.lineTo(i + stripCanvas.height, stripCanvas.height);
+          stripCtx.lineTo(i + stripCanvas.height + 10, stripCanvas.height);
+          stripCtx.lineTo(i + 10, 0);
           stripCtx.closePath();
           stripCtx.fill();
           stripCtx.fillStyle = stripCtx.fillStyle === '#ffccde' ? '#e6e6ff' : '#ffccde';
         }
       }
 
-      // Draw images
+      // Draw images with filters
+      const currentFilter = getActiveFilter();
       imgs.forEach((img, index) => {
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCanvas.width = imgWidth;
+        tempCanvas.height = imgHeight;
+
+        // Draw the image on a temporary canvas
+        tempCtx.drawImage(img, 0, 0, imgWidth, imgHeight);
+
+        // Apply filter to the temporary canvas
+        applyCanvasFilter(tempCtx, currentFilter, imgWidth, imgHeight);
+
+        // Draw the filtered image onto the main canvas
         if (photoStrip.classList.contains('photo-strip-vertical')) {
-          stripCtx.drawImage(img, padding, padding + index * (imgHeight + padding), imgWidth, imgHeight);
+          stripCtx.drawImage(tempCanvas, padding, padding + index * (imgHeight + padding), imgWidth, imgHeight);
         } else {
-          stripCtx.drawImage(img, padding + index * (imgWidth + padding), padding, imgWidth, imgHeight);
+          stripCtx.drawImage(tempCanvas, padding + index * (imgWidth + padding), padding, imgWidth, imgHeight);
         }
       });
 
       // Draw stickers
-      stickers.forEach((sticker, index) => {
-        stripCtx.font = '30px "Font Awesome 5 Free"';
-        stripCtx.fillStyle = sticker.style.color;
-        if (photoStrip.classList.contains('photo-strip-vertical')) {
-          stripCtx.fillText(sticker.textContent, padding + imgWidth - 40, padding + index * (imgHeight + padding) + 40);
-        } else {
-          stripCtx.fillText(sticker.textContent, padding + index * (imgWidth + padding) + 20, padding + 40);
+      const currentSticker = getActiveSticker();
+      if (currentSticker !== 'none') {
+        let stickerText, stickerColor;
+        if (currentSticker === 'heart') {
+          stickerText = '❤️';
+          stickerColor = '#ff99c2';
+        } else if (currentSticker === 'star') {
+          stickerText = '⭐';
+          stickerColor = '#ffd1dc';
+        } else if (currentSticker === 'smiley') {
+          stickerText = '😊';
+          stickerColor = '#ffccdd';
         }
-      });
 
+        stripCtx.font = '30px Arial';
+        stripCtx.fillStyle = stickerColor;
+        stripCtx.globalAlpha = 0.8;
+
+        for (let index = 0; index < maxPhotos; index++) {
+          if (photoStrip.classList.contains('photo-strip-vertical')) {
+            stripCtx.fillText(stickerText, padding + imgWidth - 40, padding + index * (imgHeight + padding) + 40);
+          } else {
+            stripCtx.fillText(stickerText, padding + index * (imgWidth + padding) + 20, padding + 40);
+          }
+        }
+        stripCtx.globalAlpha = 1.0;
+      }
+
+      // Draw date if enabled
       if (dateToggle.checked) {
         stripCtx.fillStyle = '#4a2c5e';
         stripCtx.font = '18px "Dancing Script"';
@@ -1032,7 +1104,7 @@
     previewBtn.addEventListener('click', () => {
       const currentStyle = verticalBtn.classList.contains('active') ? 'vertical' : 'horizontal';
       updateStripStyle(currentStyle); // Refresh the strip to apply all changes
-      const previewDataUrl = generatePreviewImage();
+      const previewDataUrl = generateImage();
       previewImage.src = previewDataUrl;
       previewModal.style.display = 'flex';
     });
@@ -1051,90 +1123,10 @@
 
     // Download button
     downloadBtn.addEventListener('click', () => {
-      const stripCanvas = document.createElement('canvas');
-      const stripCtx = stripCanvas.getContext('2d');
-      const imgs = photoStrip.querySelectorAll('img');
-      const stickers = photoStrip.querySelectorAll('.sticker');
-      const padding = 10;
-      const imgWidth = 300;
-      const imgHeight = 300;
-
-      if (photoStrip.classList.contains('photo-strip-vertical')) {
-        stripCanvas.width = imgWidth + padding * 2;
-        stripCanvas.height = (imgHeight * maxPhotos) + padding * (maxPhotos + 1) + (dateToggle.checked ? 30 : 0);
-      } else {
-        stripCanvas.width = (imgWidth * maxPhotos) + padding * (maxPhotos + 1);
-        stripCanvas.height = imgHeight + padding * 2 + (dateToggle.checked ? 30 : 0);
-      }
-
-      // Apply background to canvas
-      stripCtx.fillStyle = photoStripContainer.style.backgroundColor;
-      stripCtx.fillRect(0, 0, stripCanvas.width, stripCanvas.height);
-
-      const currentBackground = getActiveBackground();
-      if (currentBackground === 'gradient') {
-        const gradient = stripCtx.createLinearGradient(0, 0, stripCanvas.width, stripCanvas.height);
-        gradient.addColorStop(0, '#ffccde');
-        gradient.addColorStop(1, '#e6e6ff');
-        stripCtx.fillStyle = gradient;
-        stripCtx.fillRect(0, 0, stripCanvas.width, stripCanvas.height);
-      } else if (currentBackground === 'dots') {
-        stripCtx.fillStyle = '#ff99c2';
-        for (let x = 0; x < stripCanvas.width; x += 20) {
-          for (let y = 0; y < stripCanvas.height; y += 20) {
-            stripCtx.beginPath();
-            stripCtx.arc(x, y, 2, 0, Math.PI * 2);
-            stripCtx.fill();
-          }
-        }
-      } else if (currentBackground === 'stripes') {
-        stripCtx.fillStyle = '#ffccde';
-        for (let i = 0; i < stripCanvas.width + stripCanvas.height; i += 20) {
-          stripCtx.beginPath();
-          stripCtx.moveTo(i, 0);
-          stripCtx.lineTo(0, i);
-          stripCtx.lineTo(i - stripCanvas.width, stripCanvas.height);
-          stripCtx.lineTo(i - stripCanvas.width + stripCanvas.height, stripCanvas.height);
-          stripCtx.closePath();
-          stripCtx.fill();
-          stripCtx.fillStyle = stripCtx.fillStyle === '#ffccde' ? '#e6e6ff' : '#ffccde';
-        }
-      }
-
-      // Draw images
-      imgs.forEach((img, index) => {
-        if (photoStrip.classList.contains('photo-strip-vertical')) {
-          stripCtx.drawImage(img, padding, padding + index * (imgHeight + padding), imgWidth, imgHeight);
-        } else {
-          stripCtx.drawImage(img, padding + index * (imgWidth + padding), padding, imgWidth, imgHeight);
-        }
-      });
-
-      // Draw stickers
-      stickers.forEach((sticker, index) => {
-        stripCtx.font = '30px "Font Awesome 5 Free"';
-        stripCtx.fillStyle = sticker.style.color;
-        if (photoStrip.classList.contains('photo-strip-vertical')) {
-          stripCtx.fillText(sticker.textContent, padding + imgWidth - 40, padding + index * (imgHeight + padding) + 40);
-        } else {
-          stripCtx.fillText(sticker.textContent, padding + index * (imgWidth + padding) + 20, padding + 40);
-        }
-      });
-
-      if (dateToggle.checked) {
-        stripCtx.fillStyle = '#4a2c5e';
-        stripCtx.font = '18px "Dancing Script"';
-        stripCtx.textAlign = 'center';
-        stripCtx.fillText(
-          dateDisplay.textContent,
-          stripCanvas.width / 2,
-          stripCanvas.height - padding
-        );
-      }
-
+      const dataUrl = generateImage();
       const link = document.createElement('a');
       link.download = 'photo-strip.png';
-      link.href = stripCanvas.toDataURL('image/png');
+      link.href = dataUrl;
       link.click();
     });
 
